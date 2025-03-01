@@ -1,5 +1,3 @@
-from circuit_transformer import write_aiger
-
 # Circuit Transformer
 
 This is the official implementation of the Circuit Transformer model in the ICLR 2025 paper "[Circuit Transformer: A Transformer That Preserves Logical Equivalence](https://openreview.net/forum?id=kpnW12Lm9p)"

@@ -156,7 +156,6 @@ Some helper functions for AIG manipulation are as follows:
 - `ct.write_aiger(aig, filename)`: convert `aig` to Aiger format, return an Aiger string, and also write to `filename` if specified.
 - `ct.count_num_ands(aig)`: return the number of AND nodes of `aig`
 - `ct.compute_tts(aig, num_inputs)`: return the truth tables for each output of `aig` with `num_inputs` primary inputs (for the truth table for a single node, use `ct.compute_tt`)
-- 
 
 There are also some helper functions with ABC as the backend, including
 - `ct.sequential_synthesis(aig, command)`: optimize `aig` with ABC's `resyn2` (`command="resyn2"`) or `&deepsyn` (`command="deepsyn"`) and return the optimized AIG.

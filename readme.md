@@ -142,7 +142,7 @@ and_1 = ct.Node(var=None,
 aig = [ct.NodeWithInv(and_0, inverted=False), ct.NodeWithInv(and_1, inverted=True)]
 
 print(ct.count_num_ands(aig))
-print(ct.compute_tts_batch_bitarray(aig, ct.compute_value_tt_bitarray(2)))
+print(ct.compute_tts(aig, num_inputs=2))
 ```
 
 which will output the total number of nodes, and the truth tables of the AIG:
@@ -150,6 +150,17 @@ which will output the total number of nodes, and the truth tables of the AIG:
 2
 [bitarray('0010'), bitarray('1011')]
 ```
+
+Some helper functions for AIG manipulation are as follows:
+- `ct.read_aiger(filename=None, aiger_str=None)`: convert an Aiger file (`filename`) or an Aiger string (`aiger_str`) to the aforementioned AIG representation. return `(aig, info)` in which `aig` is a list of output nodes and `info` is the first five numbers of Aiger format.
+- `ct.write_aiger(aig, filename)`: convert `aig` to Aiger format, return an Aiger string, and also write to `filename` if specified.
+- `ct.count_num_ands(aig)`: return the number of AND nodes of `aig`
+- `ct.compute_tts(aig, num_inputs)`: return the truth tables for each output of `aig` with `num_inputs` primary inputs (for the truth table for a single node, use `ct.compute_tt`)
+- 
+
+There are also some helper functions with ABC as the backend, including
+- `ct.sequential_synthesis(aig, command)`: optimize `aig` with ABC's `resyn2` (`command="resyn2"`) or `&deepsyn` (`command="deepsyn"`) and return the optimized AIG.
+- `ct.cec(aig1, aig2)`: check whether `aig1` and `aig2` are equivalent with ABC's `cec` command, return `True` if equivalent.
 
 ### Don't Cares
 

@@ -104,7 +104,7 @@ class LogicNetworkEnv:
                  tts,
                  num_inputs,
                  context_num_inputs=None,
-                 value_tt=None,
+                 input_tt=None,
                  init_care_set_tt=None,     # for the first output (which can be computed in advance) or for all the outputs (list[num_outputs])
                  max_tree_depth=32,
                  max_inference_tree_depth=16,
@@ -148,12 +148,12 @@ class LogicNetworkEnv:
         self.use_controllability_dont_cares = use_controllability_dont_cares
         self.unfinished_penalty = -10
         self.verbose = verbose
-        if value_tt is None:
-            self.value_tt_bitarray = compute_value_tt_bitarray(self.context_num_inputs)
+        if input_tt is None:
+            self.input_tt_bitarray = compute_input_tt(self.context_num_inputs)
         else:
-            self.value_tt_bitarray = value_tt
+            self.input_tt_bitarray = input_tt
         self.tt_cache_bitarray = {Node(i // 2, None, None): v
-                                  for i, v in enumerate(self.value_tt_bitarray) if i % 2 == 0}
+                                  for i, v in enumerate(self.input_tt_bitarray) if i % 2 == 0}
         self.tt_hash_bitarray = {v.tobytes(): node for node, v in self.tt_cache_bitarray.items()}
         self.vocab_size = 2 + num_inputs * 2 + 2
         self.ref_dict = {k: 1 for k in self.tt_cache_bitarray.keys()}
@@ -166,10 +166,10 @@ class LogicNetworkEnv:
             assert tts_compressed is not None
             assert init_care_set_tt is None
             self.compress_indices = None
-            self.value_tt_bitarray_compressed = compute_value_tt_bitarray(len(self.value_tt_bitarray) // 2)
+            self.input_tt_bitarray_compressed = compute_input_tt(len(self.input_tt_bitarray) // 2)
             self.tts_bitarray_compressed = tts_compressed
             self.tt_cache_bitarray_compressed = {Node(i // 2, None, None): v
-                                                 for i, v in enumerate(self.value_tt_bitarray_compressed) if i % 2 == 0}
+                                                 for i, v in enumerate(self.input_tt_bitarray_compressed) if i % 2 == 0}
 
         self.action_masks.append(self.gen_action_mask())
 
@@ -227,20 +227,20 @@ class LogicNetworkEnv:
 
         a = bytearray()
         len_care_set = self.care_set_tt.count()
-        assert len(self.value_tt_bitarray) // 2 <= 8  # one byte
-        for i, tt in enumerate(self.value_tt_bitarray):
+        assert len(self.input_tt_bitarray) // 2 <= 8  # one byte
+        for i, tt in enumerate(self.input_tt_bitarray):
             if i % 2 == 0:
                 a.extend(tt[self.care_set_tt].unpack(one=(1 << (i // 2)).to_bytes(1, 'big')))
-        a_np = np.frombuffer(a, dtype=np.uint8).reshape(len(self.value_tt_bitarray) // 2, len_care_set)
+        a_np = np.frombuffer(a, dtype=np.uint8).reshape(len(self.input_tt_bitarray) // 2, len_care_set)
         a_np = np.sum(a_np, axis=0, dtype=np.uint8)
         a_np_unique, self.compress_indices = np.unique(a_np, return_index=True)
 
         if self.verbose > 1:
             a = bytearray()
-            for i, tt in enumerate(self.value_tt_bitarray):
+            for i, tt in enumerate(self.input_tt_bitarray):
                 if i % 2 == 0:
                     a.extend(tt.unpack(one=(1 << (i // 2)).to_bytes(1, 'big')))
-            a_np_ = np.frombuffer(a, dtype=np.uint8).reshape(len(self.value_tt_bitarray) // 2, len(self.care_set_tt))
+            a_np_ = np.frombuffer(a, dtype=np.uint8).reshape(len(self.input_tt_bitarray) // 2, len(self.care_set_tt))
             a_np_ = np.sum(a_np_, axis=0, dtype=np.uint8)
             a_np_unique_, self.compress_indices_no_care_set = np.unique(a_np_, return_index=True)
             if len(self.compress_indices_no_care_set) > len(self.compress_indices):
@@ -253,20 +253,20 @@ class LogicNetworkEnv:
             a_bitarray_i.frombytes(a_np_i.tobytes())
 
         if len(a_bitarray_unique) == 0:
-            self.value_tt_bitarray_compressed = [bitarray.bitarray() for _ in self.value_tt_bitarray]
+            self.input_tt_bitarray_compressed = [bitarray.bitarray() for _ in self.input_tt_bitarray]
         else:
-            self.value_tt_bitarray_compressed = []
+            self.input_tt_bitarray_compressed = []
             for i, a_tuple in enumerate(zip(*a_bitarray_unique)):
-                if i < 8 - len(self.value_tt_bitarray) // 2:
+                if i < 8 - len(self.input_tt_bitarray) // 2:
                     continue
                 a_bitarray = bitarray.bitarray(a_tuple)
-                self.value_tt_bitarray_compressed.extend([~a_bitarray, a_bitarray])
-            self.value_tt_bitarray_compressed.reverse()
-        # self.value_tt_bitarray_compressed_ = [bitarray.bitarray(_) for _ in zip(*a_bitarray_unique)]
+                self.input_tt_bitarray_compressed.extend([~a_bitarray, a_bitarray])
+            self.input_tt_bitarray_compressed.reverse()
+        # self.input_tt_bitarray_compressed_ = [bitarray.bitarray(_) for _ in zip(*a_bitarray_unique)]
         tts_care_set = [tt[self.care_set_tt] for tt in self.tts_bitarray]
         self.tts_bitarray_compressed = [bitarray.bitarray([tt[i] for i in self.compress_indices]) for tt in tts_care_set]
         self.tt_cache_bitarray_compressed = {Node(i // 2, None, None): v
-                                             for i, v in enumerate(self.value_tt_bitarray_compressed) if i % 2 == 0}
+                                             for i, v in enumerate(self.input_tt_bitarray_compressed) if i % 2 == 0}
 
     def compress(self, tt):
         return (tt[self.care_set_tt])[self.compress_indices]
@@ -306,7 +306,7 @@ class LogicNetworkEnv:
                         self.tree_stack[-1].left is not None and self.tree_stack[-1].right is not None)):
                     old_node = copy.copy(self.tree_stack[-1])
                     old_node.inverted = False
-                    tt_bitarray = compute_tt_batch_bitarray(old_node, value_tt=self.value_tt_bitarray, cache=self.tt_cache_bitarray)
+                    tt_bitarray = compute_tt(old_node, input_tt=self.input_tt_bitarray, cache=self.tt_cache_bitarray)
                     tt_not_bitarray = ~tt_bitarray
                     tt = tt_bitarray.tobytes()
                     tt_not = tt_not_bitarray.tobytes()
@@ -321,7 +321,7 @@ class LogicNetworkEnv:
                             if self.use_controllability_dont_cares:
                                 self.tt_cache_bitarray_compressed[new_node_with_inv] = self.compress(self.tt_cache_bitarray[new_node_with_inv])
                             else:
-                                tt_bitarray_compressed = compute_tt_batch_bitarray(old_node, value_tt=self.value_tt_bitarray_compressed, cache=self.tt_cache_bitarray_compressed)
+                                tt_bitarray_compressed = compute_tt(old_node, input_tt=self.input_tt_bitarray_compressed, cache=self.tt_cache_bitarray_compressed)
                                 self.tt_cache_bitarray_compressed[new_node_with_inv] = (~tt_bitarray_compressed) if self.tree_stack[-1].inverted else tt_bitarray_compressed
                             if len(self.tree_stack) > 1:
                                 if self.tree_stack[-2].left is self.tree_stack[-1]:
@@ -340,8 +340,8 @@ class LogicNetworkEnv:
                         if self.use_controllability_dont_cares:
                             self.tt_cache_bitarray_compressed[self.tree_stack[-1]] = self.compress(self.tt_cache_bitarray[self.tree_stack[-1]])
                         else:
-                            tt_bitarray_compressed = compute_tt_batch_bitarray(self.tree_stack[-1],
-                                                                               value_tt=self.value_tt_bitarray_compressed,
+                            tt_bitarray_compressed = compute_tt(self.tree_stack[-1],
+                                                                               input_tt=self.input_tt_bitarray_compressed,
                                                                                cache=self.tt_cache_bitarray_compressed)
                             self.tt_cache_bitarray_compressed[self.tree_stack[-1]] = tt_bitarray_compressed
                         if self.context_hash is not None and (tt in self.context_hash or tt_not in self.context_hash):
@@ -382,8 +382,8 @@ class LogicNetworkEnv:
                     cur_node.left = node
                 else:
                     cur_node.right = node
-            has_conflict_ba, completeness_ba = check_conflict_batch_new_bitarray(self.tree_stack, self.tts_bitarray_compressed[self.cur_root_id],
-                                                                    self.value_tt_bitarray_compressed, self.tt_cache_bitarray_compressed)
+            has_conflict_ba, completeness_ba = check_conflict(self.tree_stack, self.tts_bitarray_compressed[self.cur_root_id],
+                                                              self.input_tt_bitarray_compressed, self.tt_cache_bitarray_compressed)
             value_action_mask_ba = ~has_conflict_ba
             action_mask_ba[2: 2 + len(value_action_mask_ba)] = value_action_mask_ba
             if self.and_always_available:
@@ -497,7 +497,7 @@ class CircuitTransformer:
         self._transformer_inference = types.MethodType(_transformer_inference, self)
         self._transformer.return_cache = True
         self.use_kv_cache = True
-        self.value_tt = compute_value_tt_bitarray(self.num_inputs)
+        self.input_tt = compute_input_tt(self.num_inputs)
 
     def _get_tf_transformer(self):
         return Seq2SeqTransformer(
@@ -523,14 +523,14 @@ class CircuitTransformer:
         if isinstance(env, list):
             return [self._copy_env(e) for e in env]
         else:
-            context_hash, tts_bitarray, value_tt_bitarray, value_tt_bitarray_compressed, ffw = \
-                env.context_hash, env.tts_bitarray, env.value_tt_bitarray, env.value_tt_bitarray_compressed, env.ffw
-            env.context_hash, env.tts, env.value_tt, env.value_tt_bitarray_compressed, env.ffw = None, None, None, None, None
+            context_hash, tts_bitarray, input_tt_bitarray, input_tt_bitarray_compressed, ffw = \
+                env.context_hash, env.tts_bitarray, env.input_tt_bitarray, env.input_tt_bitarray_compressed, env.ffw
+            env.context_hash, env.tts, env.input_tt, env.input_tt_bitarray_compressed, env.ffw = None, None, None, None, None
             res = copy.deepcopy(env)
-            env.context_hash, env.tts_bitarray, env.value_tt_bitarray, env.value_tt_bitarray_compressed, env.ffw = \
-                context_hash, tts_bitarray, value_tt_bitarray, value_tt_bitarray_compressed, ffw
-            res.context_hash, res.tts_bitarray, res.value_tt_bitarray, res.value_tt_bitarray_compressed, res.ffw = \
-                context_hash, tts_bitarray, value_tt_bitarray, value_tt_bitarray_compressed, ffw
+            env.context_hash, env.tts_bitarray, env.input_tt_bitarray, env.input_tt_bitarray_compressed, env.ffw = \
+                context_hash, tts_bitarray, input_tt_bitarray, input_tt_bitarray_compressed, ffw
+            res.context_hash, res.tts_bitarray, res.input_tt_bitarray, res.input_tt_bitarray_compressed, res.ffw = \
+                context_hash, tts_bitarray, input_tt_bitarray, input_tt_bitarray_compressed, ffw
             return res
 
     def _batch_estimate_policy(self, envs: list[LogicNetworkEnv], src_tokens, src_pos_enc, src_action_mask, action_masks, cache):
@@ -837,12 +837,12 @@ class CircuitTransformer:
         self._transformer.load_weights(ckpt_path)
         self.ckpt_path = index_path
 
-    def generate_action_masks(self, tts, value_tt, care_set_tts, seq_enc, use_controllability_dont_care, tts_compressed=None, ffw = None):
+    def generate_action_masks(self, tts, input_tt, care_set_tts, seq_enc, use_controllability_dont_care, tts_compressed=None, ffw = None):
         env = LogicNetworkEnv(tts,
                               self.num_inputs,
                               init_care_set_tt=care_set_tts,
                               ffw=ffw,
-                              value_tt=value_tt,
+                              input_tt=input_tt,
                               max_length=self.max_seq_length,
                               use_controllability_dont_cares=use_controllability_dont_care,
                               tts_compressed=tts_compressed,
@@ -884,9 +884,9 @@ class CircuitTransformer:
 
         seq_enc, pos_enc = self._encode_postprocess(*encode_aig(roots, num_inputs))
         opt_seq_enc, opt_pos_enc = encode_aig(opt_roots, num_inputs)
-        tts = compute_tts_batch_bitarray(roots, self.value_tt)
-        enc_action_masks = self.generate_action_masks(tts, self.value_tt, care_set_tts, seq_enc, True)
-        dec_action_masks = self.generate_action_masks(tts, self.value_tt, care_set_tts, opt_seq_enc, True)
+        tts = compute_tts(roots, input_tt=self.input_tt)
+        enc_action_masks = self.generate_action_masks(tts, self.input_tt, care_set_tts, seq_enc, True)
+        dec_action_masks = self.generate_action_masks(tts, self.input_tt, care_set_tts, opt_seq_enc, True)
         opt_seq_enc, opt_pos_enc = self._encode_postprocess(opt_seq_enc, opt_pos_enc)
         return seq_enc, pos_enc, opt_seq_enc, opt_pos_enc, enc_action_masks, dec_action_masks
 
@@ -1041,7 +1041,7 @@ class CircuitTransformer:
     def optimize(self,
                  aigs: list,
                  context_num_inputs=None,
-                 value_tts: list = None,
+                 input_tts: list = None,
                  care_set_tts=None,
                  ffws=None,
                  context_hash_list=None,
@@ -1070,7 +1070,7 @@ class CircuitTransformer:
             aigs_batch = aigs[i: i + self.inference_batch_size]
             care_set_tts_batch = care_set_tts[i: i + self.inference_batch_size] if care_set_tts is not None else None
             ffws_batch = ffws[i: i + self.inference_batch_size] if ffws is not None else None
-            value_tts_batch = value_tts[i: i + self.inference_batch_size] if value_tts is not None else None
+            input_tts_batch = input_tts[i: i + self.inference_batch_size] if input_tts is not None else None
             context_hash_list_batch = context_hash_list[i: i + self.inference_batch_size] if context_hash_list is not None else None
             tts_compressed_batch = tts_compressed_list[i: i + self.inference_batch_size] if tts_compressed_list is not None else None
             max_inference_reward_list_batch = max_inference_reward_list[i: i + self.inference_batch_size] if max_inference_reward_list is not None else None
@@ -1078,7 +1078,7 @@ class CircuitTransformer:
                                                   max_inference_seq_length,
                                                   max_mcts_inference_seq_length,
                                                   context_num_inputs,
-                                                  value_tts_batch,
+                                                  input_tts_batch,
                                                   care_set_tts_batch,
                                                   ffws_batch,
                                                   context_hash_list_batch,
@@ -1097,7 +1097,7 @@ class CircuitTransformer:
                        max_inference_seq_length,
                        max_mcts_inference_seq_length=None,
                        context_num_inputs=None,
-                       value_tts: list = None,
+                       input_tts: list = None,
                        care_set_tts=None,
                        ffws=None,
                        context_hash_list=None,
@@ -1130,10 +1130,10 @@ class CircuitTransformer:
                                     "as the default model is trained on 8-input, 2-output networks")
             orig_aig_size.append(count_num_ands(aigs[i]))
             seq_enc, pos_enc = encode_aig(aigs[i], self.num_inputs)
-            value_tt = self.value_tt if value_tts is None else value_tts[i]
-            tts = [compute_tt_batch_bitarray(root, value_tt=value_tt) for root in aig]
+            input_tt = self.input_tt if input_tts is None else input_tts[i]
+            tts = [compute_tt(root, input_tt=input_tt) for root in aig]
             enc_action_masks.append(self.generate_action_masks(tts,
-                                                               value_tt,
+                                                               input_tt,
                                                                None if care_set_tts is None else care_set_tts[i],
                                                                seq_enc,
                                                                use_controllability_dont_care=use_controllability_dont_cares,
@@ -1151,7 +1151,7 @@ class CircuitTransformer:
             tts=tts_list[i],
             num_inputs=self.num_inputs,
             context_num_inputs=context_num_inputs,
-            value_tt=self.value_tt if value_tts is None else value_tts[i],
+            input_tt=self.input_tt if input_tts is None else input_tts[i],
             init_care_set_tt=None if care_set_tts is None else care_set_tts[i],
             ffw=None if ffws is None else ffws[i],
             context_hash=None if context_hash_list is None else context_hash_list[i],

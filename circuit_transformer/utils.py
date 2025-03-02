@@ -158,24 +158,24 @@ def plot_network(roots: NodeWithInv | Node | list[NodeWithInv | Node], view=Fals
         return g.render(directory=tempfile.mkdtemp(), view=view)
 
 
-def compute_value_tt_bitarray(num_inputs):
-    value_tt = [bitarray.bitarray(2 ** num_inputs) for _ in range(num_inputs * 2)]
+def compute_input_tt(num_inputs):
+    input_tt = [bitarray.bitarray(2 ** num_inputs) for _ in range(num_inputs * 2)]
     for i in range(num_inputs):
         for j in range(2 ** num_inputs):
-            value_tt[i * 2][j] = (j >> i) % 2
-            value_tt[i * 2 + 1][j] = not value_tt[i * 2][j]
-    return value_tt
+            input_tt[i * 2][j] = (j >> i) % 2
+            input_tt[i * 2 + 1][j] = not input_tt[i * 2][j]
+    return input_tt
 
 
-def compute_tt_batch_bitarray(root: NodeWithInv | Node, num_inputs=None, value_tt=None, cache=None):
-    def compute_tt_batch_bitarray_rec(root: NodeWithInv) -> bitarray.bitarray:
+def compute_tt(root: NodeWithInv | Node, num_inputs=None, input_tt=None, cache=None):
+    def compute_tt_rec(root: NodeWithInv) -> bitarray.bitarray:
         if isinstance(cache, dict) and root in cache:
             return cache[root]
         if root is None:
             raise ValueError('root is None')
         elif root.is_leaf():
             if root.var >= 0:
-                res = value_tt[root.var * 2]
+                res = input_tt[root.var * 2]
             elif root.var == -1:    # -1 means constant zero
                 res = bitarray.util.zeros(2 ** num_inputs)
             else:                   # -2 means not decided
@@ -183,47 +183,49 @@ def compute_tt_batch_bitarray(root: NodeWithInv | Node, num_inputs=None, value_t
         elif isinstance(cache, dict) and root.parent in cache:
             res = cache[root.parent]
         else:
-            left_tt = compute_tt_batch_bitarray_rec(root.left)
-            right_tt = compute_tt_batch_bitarray_rec(root.right)
+            left_tt = compute_tt_rec(root.left)
+            right_tt = compute_tt_rec(root.right)
             res = left_tt & right_tt
-            # res = compute_tt_batch_rec(root.left) & compute_tt_batch_rec(root.right)
         if root.inverted:
             res = ~res
         return res
 
-    if value_tt is None:
+    if input_tt is None:
         assert num_inputs is not None
-        value_tt = compute_value_tt_bitarray(num_inputs)
+        input_tt = compute_input_tt(num_inputs)
     elif num_inputs is None:
-        num_inputs = base_2_log(len(value_tt[0]))
+        num_inputs = base_2_log(len(input_tt[0]))
     if type(root) is Node:
         root = NodeWithInv(root, inverted=False)
-    res = compute_tt_batch_bitarray_rec(root)
+    res = compute_tt_rec(root)
     return res
 
 
-def compute_tts_batch_bitarray(roots: list[NodeWithInv], value_tt):
-    return [compute_tt_batch_bitarray(root, value_tt=value_tt) for root in roots]
+def compute_tts(roots: list[NodeWithInv], num_inputs=None, input_tt=None):
+    if input_tt is None:
+        assert num_inputs is not None
+        input_tt = compute_input_tt(num_inputs)
+    return [compute_tt(root, input_tt=input_tt) for root in roots]
 
 
-def check_conflict_batch_new_bitarray(tree_stack: list[NodeWithInv], tt, value_tt, cache):
+def check_conflict(tree_stack: list[NodeWithInv], tt, input_tt, cache):
     tt_size = len(tt)
-    b = value_tt.copy()
-    n = [bitarray.util.zeros(tt_size) for _ in value_tt]   # whether is unknown
+    b = input_tt.copy()
+    n = [bitarray.util.zeros(tt_size) for _ in input_tt]   # whether is unknown
     for node in reversed(tree_stack):
         if node.right is None:
-            for i in range(len(value_tt)):
+            for i in range(len(input_tt)):
                 n[i] = b[i] | n[i]              # set n[i] to True for those b[i] is True (1 AND U = U)
         else:
             left_tt = cache[node.left]          # all the left child have a known truth table
-            for i in range(len(value_tt)):
+            for i in range(len(input_tt)):
                 b[i] = b[i] & left_tt
                 n[i] = n[i] & left_tt                     # set n[i] to False for those left_tt[i] is False (0 AND U = 0)
         if node.inverted:
-            for i in range(len(value_tt)):
+            for i in range(len(input_tt)):
                 b[i] = ~b[i]
-    has_conflict = bitarray.bitarray([((~n[i]) & (b[i] ^ tt)).any() for i in range(len(value_tt))])   # any n[i] = False and b[i] != tt[i]
-    completeness = bitarray.bitarray([not n[i].any() for i in range(len(value_tt))])    # whether all the outputs are known
+    has_conflict = bitarray.bitarray([((~n[i]) & (b[i] ^ tt)).any() for i in range(len(input_tt))])   # any n[i] = False and b[i] != tt[i]
+    completeness = bitarray.bitarray([not n[i].any() for i in range(len(input_tt))])    # whether all the outputs are known
     return has_conflict, completeness
 
 
@@ -234,7 +236,7 @@ def sequential_synthesis(roots, verbose=False, command='resyn2', title: str = "s
     write_aiger(roots, raw_filename + ".aig", with_symbol_table=False)
     if command == 'deepsyn':
         while True:
-            os.system(("%s %s \"&read %s; &deepsyn -T 1; &write -n %s;\"" %
+            os.system(("%s %s \"&read %s; &deepsyn; &write -n %s;\"" %
                        (abc_path, "-c" if verbose else "-q", raw_filename + ".aig", sequential_filename + ".aig"))
                       + (" > NUL" if platform.system() == 'Windows' else ""))   # > /dev/null
             if os.path.exists(sequential_filename + ".aig"):

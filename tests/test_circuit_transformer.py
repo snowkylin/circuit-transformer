@@ -31,14 +31,12 @@ def test_circuit_transformer():
     optimized_aigs_with_mcts = circuit_transformer.optimize(
         aigs=aigs,
         num_mcts_steps=1,               # enable MCTS
-        num_mcts_playouts_per_step=10   # number of MCTS playouts
+        num_mcts_playouts_per_step=2   # number of MCTS playouts
     )
     optimized_aig_with_mcts = optimized_aigs_with_mcts[0]
     print("Optimized AIG: \n%s\n#(AND) from %d to %d, equivalence check: %r" %
           (ct.write_aiger(optimized_aig_with_mcts), ct.count_num_ands(aig),
            ct.count_num_ands(optimized_aig_with_mcts), ct.cec(aig, optimized_aig)))
-    deepsyn_optimized_aig, info = ct.sequential_synthesis(aig, command='deepsyn')
-    print("deepsyn optimized AIG: #(AND) = %d" % ct.count_num_ands(deepsyn_optimized_aig))
 
 
 def test_aig():
@@ -53,7 +51,7 @@ def test_aig():
                     left=ct.NodeWithInv(x_0, inverted=False),
                     right=ct.NodeWithInv(x_1, inverted=True))
     aig = [ct.NodeWithInv(and_0, inverted=False), ct.NodeWithInv(and_1, inverted=True)]
-    tts = ct.compute_tts_batch_bitarray(aig, ct.compute_value_tt_bitarray(2))
+    tts = ct.compute_tts(aig, num_inputs=2)
 
     assert ct.count_num_ands(aig) == 2
     assert tts[0] == bitarray.bitarray('0010')

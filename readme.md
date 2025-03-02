@@ -2,7 +2,11 @@
 
 This is the official implementation of the Circuit Transformer model in the ICLR 2025 paper "[Circuit Transformer: A Transformer That Preserves Logical Equivalence](https://openreview.net/forum?id=kpnW12Lm9p)"
 
-The model checkpoints are in a separate repository in HugggingFace: <https://huggingface.co/snowkylin/circuit-transformer>
+The model checkpoints are in a separate repository in HuggingFace: <https://huggingface.co/snowkylin/circuit-transformer>
+
+An interactive demo can be found at <https://huggingface.co/spaces/snowkylin/circuit-transformer-demo>
+
+https://github.com/user-attachments/assets/dead7905-ec49-4614-ab21-b6f2dc692f34
 
 ## Install
 

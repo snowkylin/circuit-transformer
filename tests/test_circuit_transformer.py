@@ -1,3 +1,6 @@
+import bitarray
+
+
 def test_circuit_transformer():
     import circuit_transformer as ct
 
@@ -38,5 +41,25 @@ def test_circuit_transformer():
     print("deepsyn optimized AIG: #(AND) = %d" % ct.count_num_ands(deepsyn_optimized_aig))
 
 
+def test_aig():
+    import circuit_transformer as ct
+
+    x_0 = ct.Node(var=0, left=None, right=None)
+    x_1 = ct.Node(var=1, left=None, right=None)
+    and_0 = ct.Node(var=None,
+                    left=ct.NodeWithInv(x_0, inverted=True),
+                    right=ct.NodeWithInv(x_1, inverted=False))
+    and_1 = ct.Node(var=None,
+                    left=ct.NodeWithInv(x_0, inverted=False),
+                    right=ct.NodeWithInv(x_1, inverted=True))
+    aig = [ct.NodeWithInv(and_0, inverted=False), ct.NodeWithInv(and_1, inverted=True)]
+    tts = ct.compute_tts_batch_bitarray(aig, ct.compute_value_tt_bitarray(2))
+
+    assert ct.count_num_ands(aig) == 2
+    assert tts[0] == bitarray.bitarray('0010')
+    assert tts[1] == bitarray.bitarray('1011')
+
+
 if __name__ == "__main__":
     test_circuit_transformer()
+    test_aig()

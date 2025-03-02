@@ -55,9 +55,9 @@ class Node:
 
 
 class NodeWithInv(Node):
-    def __init__(self, parent: Node, self_not, output_symbol=None):
+    def __init__(self, parent: Node, inverted, output_symbol=None):
         self._parent = parent
-        self.self_not = self_not
+        self.inverted = inverted
         self.output_symbol = output_symbol
 
     @property
@@ -126,10 +126,10 @@ def plot_network(roots: NodeWithInv | Node | list[NodeWithInv | Node], view=Fals
                 plot_network_rec(node.right, node, depth + 1, g, plotted_nodes)
                 plotted_nodes.add(node.parent)
         if parent is not None:
-            if node.self_not:
+            if node.inverted:
                 g.attr('edge', style='dashed')
             g.edge(name, str(id(parent.parent)))
-            if node.self_not:
+            if node.inverted:
                 g.attr('edge', style='')
 
     new_nodes = []
@@ -138,19 +138,19 @@ def plot_network(roots: NodeWithInv | Node | list[NodeWithInv | Node], view=Fals
     g.attr('node', style='filled')
     if not isinstance(roots, list):
         roots = [roots]
-    roots = [NodeWithInv(root, self_not=False) if type(root) is Node else root for root in roots]
+    roots = [NodeWithInv(root, inverted=False) if type(root) is Node else root for root in roots]
     plotted_nodes = set()
     g.attr('node', color='lightgrey')
     for root in roots:
         plot_network_rec(root, None, 0, g, plotted_nodes)
     g.attr('node', color='lightblue')
     for i, root in enumerate(roots):
-        name = str(id(root.parent)) + str(root.self_not)
+        name = str(id(root.parent)) + str(root.inverted)
         g.node(name, "o_%d" % i)
-        if root.self_not:
+        if root.inverted:
             g.attr('edge', style='dashed')
         g.edge(str(id(root.parent)), name)
-        if root.self_not:
+        if root.inverted:
             g.attr('edge', style='')
     if filename is not None:
         return g.render(outfile=filename, view=view)
@@ -187,7 +187,7 @@ def compute_tt_batch_bitarray(root: NodeWithInv | Node, num_inputs=None, value_t
             right_tt = compute_tt_batch_bitarray_rec(root.right)
             res = left_tt & right_tt
             # res = compute_tt_batch_rec(root.left) & compute_tt_batch_rec(root.right)
-        if root.self_not:
+        if root.inverted:
             res = ~res
         return res
 
@@ -197,7 +197,7 @@ def compute_tt_batch_bitarray(root: NodeWithInv | Node, num_inputs=None, value_t
     elif num_inputs is None:
         num_inputs = base_2_log(len(value_tt[0]))
     if type(root) is Node:
-        root = NodeWithInv(root, self_not=False)
+        root = NodeWithInv(root, inverted=False)
     res = compute_tt_batch_bitarray_rec(root)
     return res
 
@@ -219,7 +219,7 @@ def check_conflict_batch_new_bitarray(tree_stack: list[NodeWithInv], tt, value_t
             for i in range(len(value_tt)):
                 b[i] = b[i] & left_tt
                 n[i] = n[i] & left_tt                     # set n[i] to False for those left_tt[i] is False (0 AND U = 0)
-        if node.self_not:
+        if node.inverted:
             for i in range(len(value_tt)):
                 b[i] = ~b[i]
     has_conflict = bitarray.bitarray([((~n[i]) & (b[i] ^ tt)).any() for i in range(len(value_tt))])   # any n[i] = False and b[i] != tt[i]
@@ -393,7 +393,7 @@ def write_aiger(root: NodeWithInv | list[NodeWithInv], filename: str = None, wit
                 info['ands_detail'].append((info['node_id'], left_id * 2 + left_not, right_id * 2 + right_not))
                 info['node_id'] += 1
         # assert root.id is not None
-        return info['node_to_id'][root.parent], root.self_not
+        return info['node_to_id'][root.parent], root.inverted
 
     info = {'node_id': 1, 'ands_detail': [], 'inputs': dict(), 'node_to_id': dict()}
     if isinstance(root, NodeWithInv):
@@ -401,7 +401,7 @@ def write_aiger(root: NodeWithInv | list[NodeWithInv], filename: str = None, wit
     root = root.copy()
     for i, r in enumerate(root):
         if type(r) is Node:
-            root[i] = NodeWithInv(r, self_not=False)
+            root[i] = NodeWithInv(r, inverted=False)
     for r in root:
         write_aiger_inputs_rec(r, info, set())
     if num_inputs is None:
@@ -471,7 +471,7 @@ def npn_transform(roots: NodeWithInv | list[NodeWithInv], phase, perm, output_in
         if root.is_leaf():
             if root not in transformed_node_with_inv:
                 if phase[root.var]:
-                    root.self_not = not root.self_not
+                    root.inverted = not root.inverted
                 transformed_node_with_inv.add(root)
             if root.parent not in transformed_node:
                 # root.var = perm[root.var]
@@ -492,7 +492,7 @@ def npn_transform(roots: NodeWithInv | list[NodeWithInv], phase, perm, output_in
         output_invs = [output_invs]
     for output_inv, root in zip(output_invs, roots):
         if output_inv:
-            root.self_not = not root.self_not
+            root.inverted = not root.inverted
     return roots if len(roots) > 1 else roots[0]
 
 
@@ -524,7 +524,7 @@ def count_seq_length(root: NodeWithInv | list[NodeWithInv] | Node | list[Node],
     if isinstance(root, list):
         for r in root:
             if type(r) is Node:
-                r = NodeWithInv(r, self_not=False)
+                r = NodeWithInv(r, inverted=False)
             cumulative_length = count_seq_length(r, maximum_length, cut, cumulative_length)
             if cumulative_length == -1 or cumulative_length > maximum_length:
                 return -1
@@ -615,7 +615,7 @@ def NPNP_transformation(nodes: list[NodeWithInv], npnp_info: list):
     for i, f in enumerate(input_flip):
         if f and i in inputs_dict:
             for node_with_inv in inputs_dict[i]:
-                node_with_inv.self_not = not node_with_inv.self_not
+                node_with_inv.inverted = not node_with_inv.inverted
     # input perm
     for i, p in enumerate(reverse_permutation(input_perm)):
         if p in inputs_dict:
@@ -624,7 +624,7 @@ def NPNP_transformation(nodes: list[NodeWithInv], npnp_info: list):
     # output flip
     for new_node, f in zip(new_nodes, output_flip):
         if f:
-            new_node.self_not = not new_node.self_not
+            new_node.inverted = not new_node.inverted
     return new_nodes
 
 

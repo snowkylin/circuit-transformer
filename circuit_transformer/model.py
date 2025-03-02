@@ -32,9 +32,9 @@ from circuit_transformer.utils import *
 def node_to_int(root: NodeWithInv, num_inputs: int):
     # zero for [PAD] that will be masked
     if root.is_leaf():
-        return 2 + root.var * 2 + root.self_not  # [x_i] or [x_i_NOT]
+        return 2 + root.var * 2 + root.inverted  # [x_i] or [x_i_NOT]
     else:
-        return 2 + num_inputs * 2 + root.self_not  # [AND] or [AND_NOT]
+        return 2 + num_inputs * 2 + root.inverted  # [AND] or [AND_NOT]
 
 
 def int_to_node(token: int, num_inputs: int):
@@ -209,8 +209,8 @@ class LogicNetworkEnv:
                 for new_output, output in zip(self.roots, self.ffw.outputs):
                     for node_with_inv in self.ffw.parent.fanout_dict[output].keys():
                         node_with_inv.parent = new_output.parent
-                        if new_output.self_not:
-                            node_with_inv.self_not = not node_with_inv.self_not
+                        if new_output.inverted:
+                            node_with_inv.inverted = not node_with_inv.inverted
                 if not detect_circle(self.ffw.parent.outputs):
                     self.care_set_tt = self.ffw.parent.compute_care_set(self.ffw.outputs[self.cur_root_id])
                 else:
@@ -218,8 +218,8 @@ class LogicNetworkEnv:
                 for new_output, output in zip(self.roots, self.ffw.outputs):
                     for node_with_inv in self.ffw.parent.fanout_dict[output].keys():
                         node_with_inv.parent = output
-                        if new_output.self_not:
-                            node_with_inv.self_not = not node_with_inv.self_not
+                        if new_output.inverted:
+                            node_with_inv.inverted = not node_with_inv.inverted
                 for new_input_with_inv, parent in modified_list:
                     new_input_with_inv.parent = parent
             elif isinstance(self.init_care_set_tt, list):
@@ -305,24 +305,24 @@ class LogicNetworkEnv:
                 while len(self.tree_stack) > 0 and (self.tree_stack[-1].is_leaf() or (
                         self.tree_stack[-1].left is not None and self.tree_stack[-1].right is not None)):
                     old_node = copy.copy(self.tree_stack[-1])
-                    old_node.self_not = False
+                    old_node.inverted = False
                     tt_bitarray = compute_tt_batch_bitarray(old_node, value_tt=self.value_tt_bitarray, cache=self.tt_cache_bitarray)
                     tt_not_bitarray = ~tt_bitarray
                     tt = tt_bitarray.tobytes()
                     tt_not = tt_not_bitarray.tobytes()
                     create_new_hash = True
                     if tt in self.tt_hash_bitarray or tt_not in self.tt_hash_bitarray:
-                        self_not = tt_not in self.tt_hash_bitarray
-                        new_node = self.tt_hash_bitarray[tt_not if self_not else tt]
+                        inverted = tt_not in self.tt_hash_bitarray
+                        new_node = self.tt_hash_bitarray[tt_not if inverted else tt]
                         if self.ref_dict[new_node] > 0:     # use existing node to replace self.tree_stack[-1]
                             create_new_hash = False
-                            new_node_with_inv = NodeWithInv(new_node, (not self_not) if self.tree_stack[-1].self_not else self_not)
-                            self.tt_cache_bitarray[new_node_with_inv] = tt_not_bitarray if self.tree_stack[-1].self_not else tt_bitarray
+                            new_node_with_inv = NodeWithInv(new_node, (not inverted) if self.tree_stack[-1].inverted else inverted)
+                            self.tt_cache_bitarray[new_node_with_inv] = tt_not_bitarray if self.tree_stack[-1].inverted else tt_bitarray
                             if self.use_controllability_dont_cares:
                                 self.tt_cache_bitarray_compressed[new_node_with_inv] = self.compress(self.tt_cache_bitarray[new_node_with_inv])
                             else:
                                 tt_bitarray_compressed = compute_tt_batch_bitarray(old_node, value_tt=self.value_tt_bitarray_compressed, cache=self.tt_cache_bitarray_compressed)
-                                self.tt_cache_bitarray_compressed[new_node_with_inv] = (~tt_bitarray_compressed) if self.tree_stack[-1].self_not else tt_bitarray_compressed
+                                self.tt_cache_bitarray_compressed[new_node_with_inv] = (~tt_bitarray_compressed) if self.tree_stack[-1].inverted else tt_bitarray_compressed
                             if len(self.tree_stack) > 1:
                                 if self.tree_stack[-2].left is self.tree_stack[-1]:
                                     self.tree_stack[-2].left = new_node_with_inv
@@ -336,7 +336,7 @@ class LogicNetworkEnv:
                             reward += v1
                     if create_new_hash:
                         self.tt_hash_bitarray[tt_bitarray.tobytes()] = self.tree_stack[-1].parent
-                        self.tt_cache_bitarray[self.tree_stack[-1]] = tt_not_bitarray if self.tree_stack[-1].self_not else tt_bitarray
+                        self.tt_cache_bitarray[self.tree_stack[-1]] = tt_not_bitarray if self.tree_stack[-1].inverted else tt_bitarray
                         if self.use_controllability_dont_cares:
                             self.tt_cache_bitarray_compressed[self.tree_stack[-1]] = self.compress(self.tt_cache_bitarray[self.tree_stack[-1]])
                         else:
@@ -373,7 +373,7 @@ class LogicNetworkEnv:
                 (self.max_inference_reward is None or self.cumulative_reward >= self.max_inference_reward):
             # insert the node into the tree
             # var = -2 means not determined (check all possibilities)
-            node = NodeWithInv(parent=Node(var=-2, left=None, right=None), self_not=False)
+            node = NodeWithInv(parent=Node(var=-2, left=None, right=None), inverted=False)
             if cur_node is None:
                 is_root = True
             else:

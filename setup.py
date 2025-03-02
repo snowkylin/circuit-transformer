@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='circuit-transformer',
-    version='1.0',
+    version='1.1',
     packages=['circuit_transformer'],
     url='https://github.com/snowkylin/circuit-transformer',
     license='MIT',

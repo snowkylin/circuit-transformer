@@ -2,7 +2,9 @@
 
 This is the official implementation of the Circuit Transformer model in the ICLR 2025 paper "[Circuit Transformer: A Transformer That Preserves Logical Equivalence](https://openreview.net/forum?id=kpnW12Lm9p)"
 
-The model checkpoints are in a separate repository in HuggingFace: <https://huggingface.co/snowkylin/circuit-transformer>
+The model checkpoints and datasets are in separate repositories in HuggingFace: 
+- Checkpoints: <https://huggingface.co/snowkylin/circuit-transformer>
+- Datasets: <https://huggingface.co/datasets/snowkylin/circuit-transformer>
 
 An interactive demo can be found at <https://huggingface.co/spaces/snowkylin/circuit-transformer-demo>
 
@@ -168,6 +170,36 @@ There are also some helper functions with ABC as the backend, including
 ### Don't Cares
 
 Circuit Transformer naturally supports [don't cares](https://en.wikipedia.org/wiki/Don%27t-care_term). That is, only a subset of the `2^N` terms should be kept equivalent to the original circuit. To enable don't cares, feed the `care_set_tts` parameter of `CircuitTransformer.optimize` with a list of care sets corresponding to each input AIGs. A care set is a `bitarray.bitarray` of size `2^N`, in which the terms to be cared is equal to 1. For example, a care set of `bitarray.bitarray('0110')` for a 2-input AIG means the output circuit should be equivalent on `x_0=1,x_1=0` and `x_0=0,x_1=1`.
+
+### Train a Circuit Transformer
+
+`ct.CircuitTransformer.train` provides the functionality to train a circuit transformer from scratch. You need to specify
+
+- `train_data_dir`: the directory of training data. The directory should contain multiple `.json` files. Each file include a list of
+  - source circuit in AIGER format
+  - the number of AND gates in the input circuit
+  - target circuit in AIGER format
+  - the number of AND gates in the output circuit
+
+  an example is as follows:
+  ```json
+  [
+    "aag 41 8 0 2 33\n2\n4\n6\n8\n10\n12\n14\n16\n42\n83\n18 7 12\n20 15 12\n22 18 20\n24 15 23\n26 6 8\n28 2 27\n30 25 28\n32 16 2\n34 11 33\n36 8 2\n38 34 36\n40 38 20\n42 31 40\n44 3 11\n46 45 27\n48 5 13\n50 46 49\n52 50 15\n54 51 8\n56 34 5\n58 55 57\n60 52 59\n62 11 36\n64 8 20\n66 62 65\n68 10 15\n70 36 45\n72 68 71\n74 57 63\n76 72 74\n78 67 77\n80 79 58\n82 61 80\n", 
+    33, 
+    "aag 24 8 0 2 16\n2\n4\n6\n8\n10\n12\n14\n16\n30\n49\n18 8 2\n20 15 12\n22 21 11\n24 23 18\n26 17 11\n28 26 6\n30 28 24\n32 13 8\n34 33 27\n36 35 5\n38 15 10\n40 39 19\n42 8 6\n44 43 41\n46 44 25\n48 46 37\nc\nn\n", 
+    16
+  ]
+  ```
+  A sample dataset `8_inputs_2_outputs_random_deepsyn.zip` can be found in <https://huggingface.co/datasets/snowkylin/circuit-transformer>, which include ~5 million `.json` files. The source circuits are randomly generated with 8 inputs and 2 outputs. Each target circuit is the optimized source circuit via `&deepsyn -T 1` in ABC. 
+- `ckpt_save_path`: the directory to save the checkpoints,
+- `epochs`: number of epochs
+- `batch_size`: number of circuits in a batch during training
+
+Once trained, use `ct.CircuitTransformer.load(ckpt_path)` to load a checkpoint.
+
+### Test Datasets
+
+The two test datasets (random circuits and IWLS FFWs) can be accessed from `test_data.zip` in <https://huggingface.co/datasets/snowkylin/circuit-transformer>. The format is the same as the training data. Only the source circuit should be used for evaluation propose.
 
 ## Build
 

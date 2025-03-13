@@ -479,7 +479,7 @@ class CircuitTransformer:
 
         # https://www.tensorflow.org/guide/mixed_precision
         if mixed_precision:
-            tf.keras.mixed_precision.set_global_policy('mixed_float16')
+            keras.mixed_precision.set_global_policy('mixed_float16')
         self._transformer = self._get_tf_transformer()
 
         if self.ckpt_path is not None:
@@ -833,7 +833,7 @@ class CircuitTransformer:
         index_path = hf_hub_download(repo_id="snowkylin/circuit-transformer", filename="%s.index" % hf_model_name)
         data_path = hf_hub_download(repo_id="snowkylin/circuit-transformer", filename="%s.data-00000-of-00001" % hf_model_name)
         ckpt_path = index_path[:-6]
-        print("ckeckpoint downloaded to %s" % ckpt_path)
+        print("checkpoint downloaded to %s" % ckpt_path)
         self._transformer.load_weights(ckpt_path)
         self.ckpt_path = index_path
 
@@ -865,7 +865,7 @@ class CircuitTransformer:
 
     def load_and_encode(self, filename):
         with open(filename, 'r') as f:
-            roots_aiger, num_ands, care_set_tts_str, opt_roots_aiger, opt_num_ands = json.load(f)
+            roots_aiger, num_ands, opt_roots_aiger, opt_num_ands = json.load(f)
         roots, info = read_aiger(aiger_str=roots_aiger)
         opt_roots, _ = read_aiger(aiger_str=opt_roots_aiger)
         num_inputs, num_outputs = info[1], info[3]
@@ -876,17 +876,11 @@ class CircuitTransformer:
         roots = npn_transform(roots, phase, perm, output_invs)
         opt_roots = npn_transform(opt_roots, phase, perm, output_invs)
 
-        if not isinstance(care_set_tts_str, list):
-            care_set_tts = npn_transform_tt(bitarray.bitarray(care_set_tts_str), phase, perm, False)
-        else:
-            care_set_tts = [npn_transform_tt(bitarray.bitarray(care_set_tt_str), phase, perm, False)
-                            for care_set_tt_str in care_set_tts_str]
-
         seq_enc, pos_enc = self._encode_postprocess(*encode_aig(roots, num_inputs))
         opt_seq_enc, opt_pos_enc = encode_aig(opt_roots, num_inputs)
         tts = compute_tts(roots, input_tt=self.input_tt)
-        enc_action_masks = self.generate_action_masks(tts, self.input_tt, care_set_tts, seq_enc, True)
-        dec_action_masks = self.generate_action_masks(tts, self.input_tt, care_set_tts, opt_seq_enc, True)
+        enc_action_masks = self.generate_action_masks(tts, self.input_tt, None, seq_enc, True, tts)
+        dec_action_masks = self.generate_action_masks(tts, self.input_tt, None, opt_seq_enc, True, tts)
         opt_seq_enc, opt_pos_enc = self._encode_postprocess(opt_seq_enc, opt_pos_enc)
         return seq_enc, pos_enc, opt_seq_enc, opt_pos_enc, enc_action_masks, dec_action_masks
 
@@ -986,7 +980,7 @@ class CircuitTransformer:
                 if self.ckpt_path is not None:
                     transformer.load_weights(self.ckpt_path)
                 learning_rate = CustomSchedule(self.embedding_width)
-                optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+                optimizer = keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
                 transformer.compile(
                     optimizer=optimizer,
                     loss=masked_loss,
@@ -995,14 +989,14 @@ class CircuitTransformer:
         else:
             transformer = self._transformer
             learning_rate = CustomSchedule(self.embedding_width)
-            optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+            optimizer = keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
             transformer.compile(
                 optimizer=optimizer,
                 loss=masked_loss,
                 metrics=[masked_accuracy],
             )
 
-        class LogCallback(tf.keras.callbacks.Callback):
+        class LogCallback(keras.callbacks.Callback):
             def on_train_batch_end(self, batch, logs=None):
                 # print(logs)
                 pass
@@ -1018,7 +1012,7 @@ class CircuitTransformer:
 
         callbacks = []
         if ckpt_save_path is not None:
-            checkpoint = tf.keras.callbacks.ModelCheckpoint(
+            checkpoint = keras.callbacks.ModelCheckpoint(
                 filepath=ckpt_save_path + 'model-{epoch:04d}',
                 save_weights_only=True,
                 save_freq=(len(mp_dataset) * (epochs - initial_epoch) // batch_size) if latest_ckpt_only else 'epoch')

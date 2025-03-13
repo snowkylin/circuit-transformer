@@ -173,7 +173,7 @@ Circuit Transformer naturally supports [don't cares](https://en.wikipedia.org/wi
 
 ### Train a Circuit Transformer
 
-`ct.CircuitTransformer.train` provides the functionality to train a circuit transformer from scratch. You need to specify
+`CircuitTransformer.train` provides the functionality to train a circuit transformer from scratch. You need to specify
 
 - `train_data_dir`: the directory of training data. The directory should contain multiple `.json` files. Each file include a list of
   - source circuit in AIGER format
@@ -195,7 +195,7 @@ Circuit Transformer naturally supports [don't cares](https://en.wikipedia.org/wi
 - `epochs`: number of epochs
 - `batch_size`: number of circuits in a batch during training
 
-Once trained, use `ct.CircuitTransformer.load(ckpt_path)` to load a checkpoint.
+Once trained, use `CircuitTransformer.load(ckpt_path)` to load a checkpoint.
 
 ### Test Datasets
 

@@ -17,7 +17,6 @@
 Model paper: https://arxiv.org/pdf/1706.03762.pdf
 """
 import math
-
 import tensorflow as tf
 import tf_keras as keras
 from official.modeling import tf_utils
@@ -105,8 +104,9 @@ class Seq2SeqTransformer(keras.Model):
         max_tree_depth=max_tree_depth, num_repeat=embedding_width // (max_tree_depth * 2))
     self.encoder_dropout = keras.layers.Dropout(rate=self._dropout_rate)
     self.decoder_dropout = keras.layers.Dropout(rate=self._dropout_rate)
-    self.enc_candidate_ratio = self.add_weight(name='enc_candidate_ratio', dtype=tf.float32, initializer=tf.constant_initializer(0.1))
-    self.dec_candidate_ratio = self.add_weight(name='dec_candidate_ratio', dtype=tf.float32, initializer=tf.constant_initializer(0.1))
+    if add_action_mask_to_inputs:
+        self.enc_candidate_ratio = self.add_weight(name='enc_candidate_ratio', dtype=tf.float32, initializer=tf.constant_initializer(0.1))
+        self.dec_candidate_ratio = self.add_weight(name='dec_candidate_ratio', dtype=tf.float32, initializer=tf.constant_initializer(0.1))
 
   def get_config(self):
     config = {

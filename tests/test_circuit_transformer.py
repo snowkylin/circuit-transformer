@@ -1,8 +1,8 @@
 import bitarray
+import circuit_transformer as ct
 
 
 def test_circuit_transformer():
-    import circuit_transformer as ct
 
     # load a logic network with And-Inverter Graph (AIG) format
     # see https://fmv.jku.at/aiger/ for details
@@ -39,6 +39,17 @@ def test_circuit_transformer():
            ct.count_num_ands(optimized_aig_with_mcts), ct.cec(aig, optimized_aig)))
 
 
+def test_training():
+    circuit_transformer = ct.CircuitTransformer()
+    # circuit_transformer.load_from_hf()
+    circuit_transformer.train(
+        # train_data_dir='/home/snowkylin/8_inputs_2_outputs_reordered_test/',
+        train_data_dir='/home/snowkylin/data/circuits/8_inputs_2_outputs_new_filtered_10000_enhanced/',
+        ckpt_save_path='/home/snowkylin/test_ckpt/',
+        batch_size=64
+    )
+
+
 def test_aig():
     import circuit_transformer as ct
 
@@ -60,4 +71,5 @@ def test_aig():
 
 if __name__ == "__main__":
     test_circuit_transformer()
+    # test_training()
     test_aig()
